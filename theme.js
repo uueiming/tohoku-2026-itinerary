@@ -1,11 +1,16 @@
 // 2026 Tohoku Itinerary — colour theme, collapsing masthead, sticky offsets.
-// Theme: every page load follows the device's light/dark setting. The toggle
-// shows the mode on screen and a tap switches to the other for this page
-// only (nothing is saved). Also keeps the browser chrome colour in step.
+// Theme: opening the app follows the device's light/dark setting. The toggle
+// shows the mode on screen; a tap switches to the other and that choice is
+// kept on every page for the rest of the visit (sessionStorage; each page's
+// <head> applies it before first paint). Also keeps the browser chrome in step.
 
 (function () {
   var root = document.documentElement;
   var choice = 'auto';      // 'auto' (device) until the toggle is tapped
+  try {
+    var kept = sessionStorage.getItem('theme');
+    if (kept === 'light' || kept === 'dark') choice = kept;
+  } catch (e) {}
   // Earlier versions saved the choice; clear it so loads follow the device.
   try { localStorage.removeItem('theme'); } catch (e) {}
   var LABEL = {
@@ -51,6 +56,7 @@
     var btn = e.target.closest && e.target.closest('[data-theme-toggle]');
     if (!btn) return;
     choice = isDark(choice) ? 'light' : 'dark';
+    try { sessionStorage.setItem('theme', choice); } catch (err) {}
     apply(choice);
   });
 
@@ -60,9 +66,41 @@
 
   // Sticky offsets (section menu, day jumps) sit directly under the pinned bar,
   // whose height changes with the safe area and the viewport.
+  var calmMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)');
+  // Route menu: one red underline that slides to the tapped page, then the
+  // page loads (where the underline already sits under the new page).
+  var route = document.querySelector('.route');
+  if (route) {
+    var ink = document.createElement('span');
+    ink.className = 'route__ink';
+    ink.setAttribute('aria-hidden', 'true');
+    route.appendChild(ink);
+    route.classList.add('has-ink');
+    var place = function (link) {
+      if (!link) return;
+      ink.style.width = link.offsetWidth + 'px';
+      ink.style.transform = 'translateX(' + link.offsetLeft + 'px)';
+    };
+    place(route.querySelector('a[aria-current="page"]'));
+    requestAnimationFrame(function () { route.classList.add('ink-ready'); });
+    window.addEventListener('resize', function () { place(route.querySelector('a[aria-current="page"]')); });
+    route.addEventListener('click', function (e) {
+      var link = e.target.closest('a');
+      if (!link || link.getAttribute('aria-current') === 'page') return;
+      if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return;
+      if (calmMotion && calmMotion.matches) return;   // reduced motion: go straight there
+      e.preventDefault();
+      var cur = route.querySelector('a[aria-current="page"]');
+      if (cur) cur.removeAttribute('aria-current');
+      link.setAttribute('aria-current', 'page');
+      place(link);
+      setTimeout(function () { window.location.href = link.href; }, 260);
+    });
+  }
+
   // Timeline rows: animate opening and closing instead of snapping. The row's
   // colour block (.row[open]) fades in via CSS; this eases the height.
-  var calm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)');
+  var calm = calmMotion;
   document.addEventListener('click', function (e) {
     var summary = e.target.closest && e.target.closest('details.row > summary');
     if (!summary || e.target.closest('a')) return;
