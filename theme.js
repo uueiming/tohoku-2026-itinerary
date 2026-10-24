@@ -65,10 +65,19 @@
   var calm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)');
   document.addEventListener('click', function (e) {
     var summary = e.target.closest && e.target.closest('details.row > summary');
-    if (!summary || e.target.closest('a') || (calm && calm.matches)) return;
+    if (!summary || e.target.closest('a')) return;
     var row = summary.parentElement;
     var body = row.querySelector('.row__detail');
     if (!body || !body.animate) return;
+    if (calm && calm.matches) {
+      // Reduced motion: no sliding; the details simply fade in when opened.
+      if (!row.open) {
+        e.preventDefault();
+        row.open = true;
+        body.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 220, easing: 'ease' });
+      }
+      return;
+    }
     e.preventDefault();
     if (row._anim) row._anim.cancel();
     body.style.overflow = 'hidden';
