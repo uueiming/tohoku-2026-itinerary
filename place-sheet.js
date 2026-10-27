@@ -63,8 +63,36 @@
   sheet.appendChild(scroller);
   document.body.appendChild(sheet);
   scroller.addEventListener('scroll', function () {
-    sheet.classList.toggle('is-scrolled', scroller.scrollTop > 4);
+    // On a hero sheet the top blur waits until the text reaches the top
+    // edge; over the darkening photo it would only add a light haze.
+    var under = hero && hero.nextElementSibling ? hero.nextElementSibling.offsetTop - 76 : 4;
+    sheet.classList.toggle('is-scrolled', scroller.scrollTop > under);
+    if (hero) requestHero();
   }, { passive: true });
+
+  // Every sheet with a photo opens as a hero, like an Apple Music artist
+  // page: the photo holds nearly still and darkens as the text scrolls up
+  // over it; pulling down past the top stretches it.
+  var hero = null, heroQueued = false;
+  function requestHero() {
+    if (heroQueued) return;
+    heroQueued = true;
+    requestAnimationFrame(function () {
+      heroQueued = false;
+      if (!hero) return;
+      var h = hero.offsetHeight || 1;
+      var y = scroller.scrollTop;
+      var p = Math.max(0, Math.min(1, y / h));
+      var img = hero.firstChild;
+      if (y < 0) {
+        img.style.transform = 'scale(' + (1 + -y / h) + ')';
+      } else {
+        // Moves at a fifth of the scroll speed, easing slightly back in depth.
+        img.style.transform = 'translateY(' + (y * 0.8) + 'px) scale(' + (1 - p * 0.06) + ')';
+      }
+      hero.style.setProperty('--hero-fade', (p * 0.85).toFixed(3));
+    });
+  }
 
   function tile(label, big, sub) {
     var t = el('div', 'stay__tile');
@@ -81,6 +109,8 @@
     var d = place.dataset;
     scroller.textContent = '';
     sheet.classList.toggle('sheet--photo', !!d.photo);
+    sheet.classList.toggle('sheet--hero', !!d.photo);
+    hero = null;
 
     if (d.photo) {
       var fig = el('figure', 'sheet__photo');
@@ -97,6 +127,8 @@
         fig.appendChild(cap);
       }
       scroller.appendChild(fig);
+      hero = fig;
+      requestHero();
     }
 
     var body = el('div', 'sheet__body');
@@ -244,6 +276,7 @@
   function show(trigger) {
     lastRow = trigger;
     scroller.scrollTop = 0;
+    if (hero) requestHero();
     sheet.classList.remove('is-scrolled');
     sheet.style.transform = '';
     sheet.classList.remove('is-closing');
